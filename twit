@@ -1,0 +1,309 @@
+#!/bin/bash
+
+
+# Configuration
+# =============
+
+# Change this if you have other locations
+TWITDIR=$HOME/ongoing/twit-commit
+ME=_me
+MEDIR=$TWITDIR/$ME
+
+# Defaults for long and short log formats
+LOG_DATE=human
+LOG_DEFAULT_PRETTY="format:%C(yellow)%h %Cgreen%aN%Creset (%Cblue%ad%Creset)%n%Creset%n%w(0,4,4)%B"
+LOG_ONE_LINE_PRETTY="format:%Cblue%ad %Cgreen%aN %Creset%s"
+
+
+# The actual code
+# ===============
+
+twit_help() {
+	case "$1" in
+		init)
+			echo "usage: $0 init"
+			echo
+			echo "Create the local repo-account.  By default, this account has name '$ME'."
+			;;
+		commit)
+			echo "usage: $0 commit [<message>]"
+			echo
+			echo "Post a new twit-commit with given message.  If 'message' is omitted, reads"
+			echo "the message from standard input."
+			;;
+		add)
+			echo "usage: $0 add <filename> [<filename>...]"
+			echo
+			echo "Copies one or more files into the local repo-account and stages them for"
+			echo "commit.  This allows the user to attach files to a twit-commit."
+			;;
+		clone)
+			echo "usage: $0 clone <repo-account> [<name>]"
+			echo
+			echo "Follow a specified repo-account by cloning the corresponding repository."
+			echo "If a name is specificed, clones the repository in a directory with that"
+			echo "name."
+			;;
+		log)
+			echo "usage: $0 log [<repo-account>] [-o|--one-line] [-n|--new]"
+			echo
+			echo "Fetch and display the twit-commits of a given repo-account.  If no"
+			echo "repo-account is provided, display the twit-commits of the local account"
+			echo "(by default '_me')."
+			echo
+			echo "Options:"
+			echo "   -o, --one-line"
+			echo "      Compact view, with a single twit-commit per line."
+			echo "   -n, --new"
+			echo "      Only display new twit-commits."
+			;;
+		merge)
+			echo "usage: $0 merge <repo-account>"
+			echo
+			echo "Merge origin/master with master and move HEAD pointer to latest commit."
+			echo "Typically, this is used to mark new twit-commits as read."
+			;;
+		checkout)
+			echo "usage: $0 checkout [<repo-account>] [-t|--target <target>]"
+			echo
+			echo "Change the HEAD of a repo-account, e.g., to separate read twit-commits"
+			echo "from unread ones.  By default, move HEAD to master.  If 'repo-account'"
+			echo "is omitted, the local account is used."
+			echo
+			echo "Options:"
+			echo "   -t, --target"
+			echo "      A specific target (e.g., commit hash, branch) to checkout instead"
+			echo "      of master."
+			;;
+		pwd)
+			echo "usage: $0 pwd [<repo-account>]"
+			echo
+			echo "Print the directory containing a repo-account .  If 'repo-account' is"
+			echo "omitted, the local account is used."
+			;;
+		*)
+			# help
+			echo "usage: $0 <command> [<args>]"
+			echo
+			echo "The commands are:"
+			echo "   init         Create the local repo-account"
+			echo "   commit       Post a new twit-commit"
+			echo "   add          Attach files to the next twit-commit"
+			echo "   clone        Follow a repo-account"
+			echo "   log          List the twit-commits in a repo-acconut"
+			echo "   merge        Mark new twit-commits as read"
+			echo "   pwd          Print the path to a repo-account"
+			echo "   checkout     Move the 'read' marker in a repo-account"
+			echo
+			echo "For more information on a specific command, try:"
+			echo "   $0 help <command>"
+			;;
+	esac
+}
+
+twit_init() {
+	cd $TWITDIR
+
+	if [ -d "$ME" ]  # If the directory already exists
+	then
+		>&2 echo "Error: local repo-account '$ME' already exists"
+	else
+		mkdir $ME
+		cd $ME
+		git init
+	fi
+}
+
+twit_commit() {
+	cd $MEDIR
+
+	if [ -z "$1" ]  # If the message is empty
+	then
+		# Read from stdin
+		xargs -0 git commit --allow-empty -m
+	else
+		git commit --allow-empty -m "$1"
+	fi
+
+	if [[ $(git remote) ]]  # If there is a remote
+	then
+		git push
+	fi
+}
+
+twit_add() {
+	if [ -z "$1" ]  # If there are no files
+	then
+		twit_help add
+		exit 1
+	fi
+
+	for target in $@
+	do
+		cp $target $MEDIR
+	done
+
+	cd $MEDIR
+
+	for target in $@
+	do
+		filename=$(basename -- "$target")
+		git add $filename
+	done
+}
+
+twit_clone() {
+	cd $TWITDIR
+
+	if ! git clone $1 $2 2>/dev/null
+	then
+		twit_help clone
+		exit 1
+	fi
+}
+
+twit_log() {
+	# Defaults
+	repo=$ME
+	pretty=$LOG_DEFAULT_PRETTY
+	selection=origin/master
+
+	# Parse arguments
+	while true
+	do
+		case "$1" in
+			-o|--one-line)
+				shift
+				pretty=$LOG_ONE_LINE_PRETTY
+				shift
+				;;
+			-n|--new)
+				shift
+				selection="HEAD..origin/master"
+				shift
+				;;
+			"")
+				break
+				;;
+			*)
+				repo=$1
+				shift
+				;;
+		esac
+	done
+
+	cd $TWITDIR/$repo
+
+	if [[ $(git remote) ]]  # If there is a remote
+	then
+		git fetch
+	fi
+
+	git log $selection "--pretty=$pretty" "--date=$LOG_DATE" --compact-summary
+}
+
+twit_merge() {
+	if [ -z "$1" ]  # If the message is empty
+	then
+		twit_help merge
+		exit 1
+	fi
+
+	cd $TWITDIR/$1
+
+	git merge
+}
+
+twit_checkout() {
+	repo=$ME
+	target=master
+
+	# Parse arguments
+	while true
+	do
+		case "$1" in
+			-t|--target)
+				shift
+				target=$1
+				shift
+				;;
+			"")
+				break
+				;;
+			*)
+				repo=$1
+				shift
+				;;
+		esac
+	done
+
+	cd $TWITDIR/$repo
+
+	git checkout $target >/dev/null 2>&1
+}
+
+twit_pwd() {
+	if [ -z "$1" ]  # If the message is empty
+	then
+		repo=$ME
+	else
+		repo=$1
+	fi
+
+	cd $TWITDIR/$repo
+	pwd
+}
+
+case "$1" in
+	init)
+		# create local repo-account
+		shift
+		twit_init "$@"
+		;;
+	commit)
+		# make a post
+		shift
+		twit_commit "$@"
+		;;
+	add)
+		# attach asset to a post
+		shift
+		twit_add "$@"
+		;;
+	clone)
+		# follow
+		shift
+		twit_clone "$@"
+		;;
+	log)
+		# list posts
+		shift
+		twit_log "$@"
+		;;
+	merge)
+		# mark as read
+		shift
+		twit_merge "$@"
+		;;
+	checkout)
+		# list posts
+		shift
+		twit_checkout "$@"
+		;;
+	pwd)
+		# print directory of repo-account
+		shift
+		twit_pwd "$@"
+		;;
+	help)
+		# help
+		shift
+		twit_help "$@"
+		;;
+	*)
+		# help
+		shift
+		twit_help
+		;;
+esac
+

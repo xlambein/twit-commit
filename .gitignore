@@ -1,0 +1,3 @@
+# Ignore all subdirectories by default (that way, we exclude all repo-accounts)
+*/
+
