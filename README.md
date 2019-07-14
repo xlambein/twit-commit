@@ -163,7 +163,7 @@ moving `HEAD`.  Then, you can list only new posts with the following:
 git log HEAD..origin/master
 ```
 
-To display additional posts (e.g., to give some context), use `HEAD~N..master`
+To display additional posts (e.g., to give some context), use `HEAD~N..origin/master`
 where `N` is the number of older commits to show (starting from `HEAD` itself).
 
 Mark all new commits as read with:
@@ -172,7 +172,7 @@ Mark all new commits as read with:
 git merge
 ```
 
-You can also decide to set your HEAD pointer to a specific commit, e.g., if you
+You can also decide to set your HEAD pointer to a specific commit hash, e.g., if you
 haven't yet caught up with everything.
 
 ### Several Blogs on a Single Repo-account
@@ -227,7 +227,7 @@ Here are a bunch of other ideas to improve this project:
 If you have any suggestion for improvements, I'd be very happy to hear them!
 Get in touch with me at: `xlambein [AT] gmail [DOT] com`.
 
-You can also follow my commits here: https://github.com/xlambein/commits
+You can also follow my twit-commits here: https://github.com/xlambein/commits
 
 ## So, Um, Why????
 
